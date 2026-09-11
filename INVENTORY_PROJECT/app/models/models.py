@@ -35,7 +35,7 @@ class Permission(Base):
 
 class RolePermission(Base):
     __tablename__ = "role_permissions"
-
+                
     id = Column(Integer, primary_key=True, index=True)
     role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=False)
     permission_id = Column(Integer, ForeignKey("permissions.id", ondelete="CASCADE"), nullable=False)
@@ -105,10 +105,11 @@ class Product(Base):
     barcode = Column(String(50), unique=True, nullable=True, index=True)
     name = Column(String(200), nullable=False, index=True)
     description = Column(Text, nullable=True)
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    category_id = Column(Integer, ForeignKey("categories.id"))
     brand_id = Column(Integer, ForeignKey("brands.id"), nullable=True)
     unit_id = Column(Integer, ForeignKey("units.id"), nullable=True)
     cost_price = Column(Float, default=0.0)
+    discount_percent = Column(Float, default=0.0)
     selling_price = Column(Float, default=0.0)
     min_stock_alert = Column(Integer, default=10)
     image_url = Column(String(255), nullable=True)

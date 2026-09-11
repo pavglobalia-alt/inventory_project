@@ -272,8 +272,12 @@
                 <section id="tab-sales" class="tab-pane">
                     <div class="pos-container">
                         <div class="pos-products">
-                            <div class="section-title">
-                                <h4>Select Products for Invoice</h4>
+                            <div class="section-title" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+                                <h4 style="margin: 0;">Select Products for Invoice</h4>
+                                <div class="search-box" style="width: 240px;">
+                                    <i class="fa-solid fa-magnifying-glass"></i>
+                                    <input type="text" id="pos-search-input" placeholder="Search product by name/SKU..." onkeyup="filterPOSProducts()">
+                                </div>
                             </div>
                             <div class="pos-product-grid" id="pos-products-grid"></div>
                         </div>
@@ -350,6 +354,7 @@
                                     <th>Phone</th>
                                     <th>Email</th>
                                     <th>Outstanding Receivable</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -371,6 +376,7 @@
                                     <th>Phone</th>
                                     <th>Email</th>
                                     <th>Outstanding Payable</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -442,43 +448,48 @@
     <div id="product-modal" class="modal-overlay">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>Add New Product</h3>
-                <button class="close-btn" onclick="closeModal('product-modal')">&times;</button>
+                <h3 id="product-modal-title">Add New Product</h3>
+                <button type="button" class="close-btn" onclick="closeModal('product-modal')">&times;</button>
             </div>
             <form id="form-create-product">
+                <input type="hidden" id="p-id" value="">
                 <div class="input-group">
                     <label>SKU Number *</label>
-                    <input type="text" id="p-sku" required placeholder="SKU-1001">
+                    <input type="text" id="p-sku" required placeholder="Enter SKU Number (e.g. SKU-1001)">
                 </div>
                 <div class="input-group">
-                    <label>Barcode</label>
-                    <input type="text" id="p-barcode" placeholder="890123456700">
+                    <label>Barcode *</label>
+                    <input type="text" id="p-barcode" required placeholder="Enter Barcode (e.g. 890123456700)">
                 </div>
                 <div class="input-group">
                     <label>Product Name *</label>
-                    <input type="text" id="p-name" required placeholder="Logitech Wireless Mouse">
+                    <input type="text" id="p-name" required placeholder="Enter Product Name">
                 </div>
-                <div class="grid-2">
+                <div class="grid-3">
                     <div class="input-group">
                         <label>Cost Price ($) *</label>
-                        <input type="number" step="0.01" id="p-cost" required value="10.00">
+                        <input type="number" step="0.01" id="p-cost" required value="0" oninput="autoCalculateSellingPrice()">
+                    </div>
+                    <div class="input-group">
+                        <label>Discount (%) *</label>
+                        <input type="number" step="0.01" id="p-discount" required value="0" oninput="autoCalculateSellingPrice()">
                     </div>
                     <div class="input-group">
                         <label>Selling Price ($) *</label>
-                        <input type="number" step="0.01" id="p-price" required value="15.00">
+                        <input type="number" step="0.01" id="p-price" required value="0">
                     </div>
                 </div>
                 <div class="grid-2">
                     <div class="input-group">
-                        <label>Initial Stock Qty</label>
-                        <input type="number" id="p-initial-stock" value="20">
+                        <label>Initial Stock Qty *</label>
+                        <input type="number" step="1" id="p-initial-stock" required value="0">
                     </div>
                     <div class="input-group">
-                        <label>Min Stock Alert</label>
-                        <input type="number" id="p-alert" value="5">
+                        <label>Min Stock Alert *</label>
+                        <input type="number" step="1" id="p-alert" required value="0">
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary btn-block">Save Product</button>
+                <button type="submit" id="btn-save-product" class="btn btn-primary btn-block">Save Product</button>
             </form>
         </div>
     </div>
@@ -556,23 +567,24 @@
     <div id="customer-modal" class="modal-overlay">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>Add Customer</h3>
+                <h3 id="customer-modal-title">Add Customer</h3>
                 <button class="close-btn" onclick="closeModal('customer-modal')">&times;</button>
             </div>
             <form id="form-customer">
+                <input type="hidden" id="cust-id" value="">
                 <div class="input-group">
                     <label>Customer Name *</label>
                     <input type="text" id="cust-name" required placeholder="John Doe">
                 </div>
                 <div class="input-group">
-                    <label>Phone Number</label>
-                    <input type="text" id="cust-phone" placeholder="+1 555-0100">
+                    <label>Phone Number *</label>
+                    <input type="tel" id="cust-phone" required placeholder="Enter 10-digit mobile number" maxlength="10" pattern="[0-9]{10}" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);">
                 </div>
                 <div class="input-group">
                     <label>Email</label>
                     <input type="email" id="cust-email" placeholder="john@example.com">
                 </div>
-                <button type="submit" class="btn btn-primary btn-block">Save Customer</button>
+                <button type="submit" id="btn-save-customer" class="btn btn-primary btn-block">Save Customer</button>
             </form>
         </div>
     </div>
@@ -581,23 +593,24 @@
     <div id="supplier-modal" class="modal-overlay">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>Add Supplier</h3>
+                <h3 id="supplier-modal-title">Add Supplier</h3>
                 <button class="close-btn" onclick="closeModal('supplier-modal')">&times;</button>
             </div>
             <form id="form-supplier">
+                <input type="hidden" id="sup-id" value="">
                 <div class="input-group">
                     <label>Supplier Company Name *</label>
                     <input type="text" id="sup-name" required placeholder="Global Traders Ltd">
                 </div>
                 <div class="input-group">
-                    <label>Phone Number</label>
-                    <input type="text" id="sup-phone" placeholder="+1 555-9988">
+                    <label>Phone Number *</label>
+                    <input type="tel" id="sup-phone" required placeholder="Enter 10-digit mobile number" maxlength="10" pattern="[0-9]{10}" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);">
                 </div>
                 <div class="input-group">
                     <label>Email</label>
                     <input type="email" id="sup-email" placeholder="contact@globaltraders.com">
                 </div>
-                <button type="submit" class="btn btn-primary btn-block">Save Supplier</button>
+                <button type="submit" id="btn-save-supplier" class="btn btn-primary btn-block">Save Supplier</button>
             </form>
         </div>
     </div>

@@ -6,13 +6,19 @@ from app.models.models import (
 )
 from app.core.security import get_password_hash
 
-def seed_database():
+import sys
+
+def seed_database(reset: bool = False):
+    if reset or "--reset" in sys.argv:
+        print("[INFO] Re-creating database schema...")
+        Base.metadata.drop_all(bind=engine)
+
     Base.metadata.create_all(bind=engine)
     db: Session = SessionLocal()
 
     try:
         # Check if already seeded
-        if db.query(Role).first():
+        if not (reset or "--reset" in sys.argv) and db.query(Role).first():
             print("[INFO] Database already seeded.")
             return
 

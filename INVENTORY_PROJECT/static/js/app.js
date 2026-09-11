@@ -256,7 +256,10 @@ function renderProductsTable(products) {
                 <td>$${p.selling_price.toFixed(2)}</td>
                 <td>${p.stock_quantity} ${statusTag}</td>
                 <td>
-                    <button class="chip-btn" onclick="deactivateProduct(${p.id})"><i class="fa-solid fa-trash"></i></button>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="chip-btn" title="Edit Product" onclick="openEditProductModal(${p.id})"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button class="chip-btn" title="Delete Product" onclick="deactivateProduct(${p.id})"><i class="fa-solid fa-trash"></i></button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -273,28 +276,88 @@ function filterProducts() {
     renderProductsTable(filtered);
 }
 
+function autoCalculateSellingPrice() {
+    const cost = parseFloat(document.getElementById('p-cost').value) || 0;
+    const discount = parseFloat(document.getElementById('p-discount').value) || 0;
+    const sellingPrice = cost - (cost * (discount / 100));
+    document.getElementById('p-price').value = sellingPrice >= 0 ? sellingPrice.toFixed(2) : '0.00';
+}
+
 function openProductModal() {
     if (!hasPermission('Products', 'FULL')) {
         alert('You do not have permission to add products.');
         return;
     }
+    document.getElementById('form-create-product').reset();
+    document.getElementById('p-id').value = '';
+    document.getElementById('product-modal-title').innerText = 'Add New Product';
+    document.getElementById('btn-save-product').innerText = 'Save Product';
+
     document.getElementById('product-modal').classList.add('active');
+}
+
+function openEditProductModal(productId) {
+    if (!hasPermission('Products', 'FULL')) {
+        alert('You do not have permission to edit products.');
+        return;
+    }
+    const product = allProducts.find(p => p.id === productId);
+    if (!product) {
+        alert('Product not found.');
+        return;
+    }
+
+    document.getElementById('p-id').value = product.id;
+    document.getElementById('product-modal-title').innerText = 'Edit Product';
+    document.getElementById('btn-save-product').innerText = 'Update Product';
+
+    document.getElementById('p-sku').value = product.sku || '';
+    document.getElementById('p-barcode').value = product.barcode || '';
+    document.getElementById('p-name').value = product.name || '';
+    document.getElementById('p-cost').value = product.cost_price || 0;
+    document.getElementById('p-discount').value = product.discount_percent || 0;
+    document.getElementById('p-price').value = product.selling_price || 0;
+    document.getElementById('p-initial-stock').value = product.stock_quantity || 0;
+    document.getElementById('p-alert').value = product.min_stock_alert || 0;
+
+    document.getElementById('product-modal').classList.add('active');
+}
+
+async function deactivateProduct(productId) {
+    if (!hasPermission('Products', 'FULL')) {
+        alert('You do not have permission to delete products.');
+        return;
+    }
+    if (!confirm('Are you sure you want to deactivate/delete this product?')) return;
+
+    try {
+        await apiFetch(`/products/${productId}`, { method: 'DELETE' });
+        loadProducts();
+    } catch (err) {
+        alert(err.message);
+    }
 }
 
 async function handleCreateProduct(e) {
     e.preventDefault();
+    const productId = document.getElementById('p-id').value;
     const payload = {
         sku: document.getElementById('p-sku').value,
-        barcode: document.getElementById('p-barcode').value || null,
+        barcode: document.getElementById('p-barcode').value,
         name: document.getElementById('p-name').value,
-        cost_price: parseFloat(document.getElementById('p-cost').value),
-        selling_price: parseFloat(document.getElementById('p-price').value),
-        initial_stock: parseFloat(document.getElementById('p-initial-stock').value),
-        min_stock_alert: parseInt(document.getElementById('p-alert').value)
+        cost_price: parseFloat(document.getElementById('p-cost').value) || 0,
+        discount_percent: parseFloat(document.getElementById('p-discount').value) || 0,
+        selling_price: parseFloat(document.getElementById('p-price').value) || 0,
+        initial_stock: parseFloat(document.getElementById('p-initial-stock').value) || 0,
+        min_stock_alert: parseInt(document.getElementById('p-alert').value) || 0
     };
 
     try {
-        await apiFetch('/products', { method: 'POST', body: JSON.stringify(payload) });
+        if (productId) {
+            await apiFetch(`/products/${productId}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await apiFetch('/products', { method: 'POST', body: JSON.stringify(payload) });
+        }
         closeModal('product-modal');
         loadProducts();
     } catch (err) {
@@ -341,6 +404,7 @@ function openAdjustmentModal() {
         alert('You do not have permission to adjust inventory.');
         return;
     }
+    document.getElementById('form-stock-adj').reset();
     document.getElementById('adjustment-modal').classList.add('active');
 }
 
@@ -376,23 +440,45 @@ async function loadSalesPOS() {
             custSelect.innerHTML += `<option value="${c.id}">${c.name} (Bal: $${c.current_balance})</option>`;
         });
 
-        const grid = document.getElementById('pos-products-grid');
-        grid.innerHTML = '';
-        allProducts.forEach(p => {
-            grid.innerHTML += `
-                <div class="product-item-card" onclick="addToPOSCart(${p.id})">
-                    <h5>${p.name}</h5>
-                    <div class="price">$${p.selling_price.toFixed(2)}</div>
-                    <div class="stock-tag">Stock: ${p.stock_quantity}</div>
-                </div>
-            `;
-        });
+        const searchInput = document.getElementById('pos-search-input');
+        if (searchInput) searchInput.value = '';
 
+        filterPOSProducts();
         renderPOSCart();
 
     } catch (err) {
         console.error(err);
     }
+}
+
+function filterPOSProducts() {
+    const query = (document.getElementById('pos-search-input')?.value || '').toLowerCase().trim();
+    const grid = document.getElementById('pos-products-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    const filtered = allProducts
+        .filter(p => 
+            p.name.toLowerCase().includes(query) || 
+            (p.sku && p.sku.toLowerCase().includes(query)) ||
+            (p.barcode && p.barcode.toLowerCase().includes(query))
+        )
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (filtered.length === 0) {
+        grid.innerHTML = '<div style="color: var(--text-muted); grid-column: 1/-1; padding: 12px;">No matching products found</div>';
+        return;
+    }
+
+    filtered.forEach(p => {
+        grid.innerHTML += `
+            <div class="product-item-card" onclick="addToPOSCart(${p.id})">
+                <h5>${p.name}</h5>
+                <div class="price">$${p.selling_price.toFixed(2)}</div>
+                <div class="stock-tag">Stock: ${p.stock_quantity}</div>
+            </div>
+        `;
+    });
 }
 
 function addToPOSCart(productId) {
@@ -422,14 +508,27 @@ function addToPOSCart(productId) {
     renderPOSCart();
 }
 
-function updateCartQty(productId, delta) {
+function setPOSCartQty(productId, newQtyVal) {
     const item = posCart.find(i => i.product_id === productId);
     if (!item) return;
 
-    item.quantity += delta;
-    if (item.quantity <= 0) {
-        posCart = posCart.filter(i => i.product_id !== productId);
+    let qty = parseFloat(newQtyVal);
+    if (isNaN(qty) || qty < 1) {
+        qty = 1;
     }
+
+    const product = allProducts.find(p => p.id === productId);
+    if (product && qty > product.stock_quantity) {
+        alert(`Cannot exceed available stock (${product.stock_quantity}).`);
+        qty = product.stock_quantity;
+    }
+
+    item.quantity = qty;
+    renderPOSCart();
+}
+
+function removeFromPOSCart(productId) {
+    posCart = posCart.filter(i => i.product_id !== productId);
     renderPOSCart();
 }
 
@@ -443,16 +542,17 @@ function renderPOSCart() {
 
     container.innerHTML = '';
     posCart.forEach(item => {
+        const lineTotal = (item.unit_price * item.quantity).toFixed(2);
         container.innerHTML += `
-            <div class="cart-item">
-                <div class="cart-item-info">
-                    <h6>${item.name}</h6>
-                    <small>$${item.unit_price.toFixed(2)} x ${item.quantity}</small>
+            <div class="cart-item" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border-color);">
+                <div class="cart-item-info" style="flex: 1; overflow: hidden;">
+                    <h6 style="margin: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.name}</h6>
+                    <small style="color: var(--text-muted); font-size: 11px;">$${item.unit_price.toFixed(2)} / unit</small>
                 </div>
-                <div class="cart-item-qty">
-                    <button onclick="updateCartQty(${item.product_id}, -1)">-</button>
-                    <span>${item.quantity}</span>
-                    <button onclick="updateCartQty(${item.product_id}, 1)">+</button>
+                <div class="cart-item-action" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="number" min="1" value="${item.quantity}" onchange="setPOSCartQty(${item.product_id}, this.value)" style="width: 55px; padding: 4px; background: var(--bg-dark); border: 1px solid var(--border-color); color: #fff; border-radius: 4px; text-align: center; font-size: 13px;">
+                    <strong style="min-width: 65px; text-align: right; color: var(--accent-green); font-size: 13px;">$${lineTotal}</strong>
+                    <button onclick="removeFromPOSCart(${item.product_id})" title="Remove item" style="background: none; border: none; color: var(--accent-red); cursor: pointer; font-size: 14px; padding: 4px;"><i class="fa-solid fa-trash"></i></button>
                 </div>
             </div>
         `;
@@ -544,6 +644,12 @@ async function loadCustomers() {
                     <td>${c.phone || 'N/A'}</td>
                     <td>${c.email || 'N/A'}</td>
                     <td><strong style="color: var(--accent-gold);">$${c.current_balance.toFixed(2)}</strong></td>
+                    <td>
+                        <div style="display: flex; gap: 6px;">
+                            <button class="chip-btn" title="Edit Customer" onclick="openEditCustomerModal(${c.id})"><i class="fa-solid fa-pen-to-square"></i></button>
+                            <button class="chip-btn" title="Delete Customer" onclick="deactivateCustomer(${c.id})"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </td>
                 </tr>
             `;
         });
@@ -564,6 +670,12 @@ async function loadSuppliers() {
                     <td>${s.phone || 'N/A'}</td>
                     <td>${s.email || 'N/A'}</td>
                     <td><strong style="color: var(--accent-teal);">$${s.current_balance.toFixed(2)}</strong></td>
+                    <td>
+                        <div style="display: flex; gap: 6px;">
+                            <button class="chip-btn" title="Edit Supplier" onclick="openEditSupplierModal(${s.id})"><i class="fa-solid fa-pen-to-square"></i></button>
+                            <button class="chip-btn" title="Delete Supplier" onclick="deactivateSupplier(${s.id})"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </td>
                 </tr>
             `;
         });
@@ -572,18 +684,107 @@ async function loadSuppliers() {
     }
 }
 
-function openCustomerModal() { document.getElementById('customer-modal').classList.add('active'); }
-function openSupplierModal() { document.getElementById('supplier-modal').classList.add('active'); }
+function openCustomerModal() {
+    document.getElementById('form-customer').reset();
+    document.getElementById('cust-id').value = '';
+    document.getElementById('customer-modal-title').innerText = 'Add Customer';
+    document.getElementById('btn-save-customer').innerText = 'Save Customer';
+    document.getElementById('customer-modal').classList.add('active');
+}
+
+function openEditCustomerModal(customerId) {
+    if (!hasPermission('Customers', 'FULL')) {
+        alert('You do not have permission to edit customers.');
+        return;
+    }
+    const customer = allCustomers.find(c => c.id === customerId);
+    if (!customer) {
+        alert('Customer not found.');
+        return;
+    }
+    document.getElementById('form-customer').reset();
+    document.getElementById('cust-id').value = customer.id;
+    document.getElementById('customer-modal-title').innerText = 'Edit Customer';
+    document.getElementById('btn-save-customer').innerText = 'Update Customer';
+
+    document.getElementById('cust-name').value = customer.name || '';
+    document.getElementById('cust-phone').value = customer.phone || '';
+    document.getElementById('cust-email').value = customer.email || '';
+    document.getElementById('customer-modal').classList.add('active');
+}
+
+async function deactivateCustomer(customerId) {
+    if (!hasPermission('Customers', 'FULL')) {
+        alert('You do not have permission to delete customers.');
+        return;
+    }
+    if (!confirm('Are you sure you want to delete this customer?')) return;
+    try {
+        await apiFetch(`/customers/${customerId}`, { method: 'DELETE' });
+        loadCustomers();
+    } catch (err) { alert(err.message); }
+}
+
+function openSupplierModal() {
+    document.getElementById('form-supplier').reset();
+    document.getElementById('sup-id').value = '';
+    document.getElementById('supplier-modal-title').innerText = 'Add Supplier';
+    document.getElementById('btn-save-supplier').innerText = 'Save Supplier';
+    document.getElementById('supplier-modal').classList.add('active');
+}
+
+function openEditSupplierModal(supplierId) {
+    if (!hasPermission('Suppliers', 'FULL')) {
+        alert('You do not have permission to edit suppliers.');
+        return;
+    }
+    const supplier = allSuppliers.find(s => s.id === supplierId);
+    if (!supplier) {
+        alert('Supplier not found.');
+        return;
+    }
+    document.getElementById('form-supplier').reset();
+    document.getElementById('sup-id').value = supplier.id;
+    document.getElementById('supplier-modal-title').innerText = 'Edit Supplier';
+    document.getElementById('btn-save-supplier').innerText = 'Update Supplier';
+
+    document.getElementById('sup-name').value = supplier.name || '';
+    document.getElementById('sup-phone').value = supplier.phone || '';
+    document.getElementById('sup-email').value = supplier.email || '';
+    document.getElementById('supplier-modal').classList.add('active');
+}
+
+async function deactivateSupplier(supplierId) {
+    if (!hasPermission('Suppliers', 'FULL')) {
+        alert('You do not have permission to delete suppliers.');
+        return;
+    }
+    if (!confirm('Are you sure you want to delete this supplier?')) return;
+    try {
+        await apiFetch(`/suppliers/${supplierId}`, { method: 'DELETE' });
+        loadSuppliers();
+    } catch (err) { alert(err.message); }
+}
 
 async function handleCreateCustomer(e) {
     e.preventDefault();
+    const customerId = document.getElementById('cust-id').value;
+    const phone = document.getElementById('cust-phone').value.trim();
+    if (phone && !/^\d{10}$/.test(phone)) {
+        alert('Please enter a valid 10-digit mobile number.');
+        return;
+    }
     const payload = {
         name: document.getElementById('cust-name').value,
-        phone: document.getElementById('cust-phone').value,
+        phone: phone,
         email: document.getElementById('cust-email').value
     };
     try {
-        await apiFetch('/customers', { method: 'POST', body: JSON.stringify(payload) });
+        if (customerId) {
+            await apiFetch(`/customers/${customerId}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await apiFetch('/customers', { method: 'POST', body: JSON.stringify(payload) });
+        }
         closeModal('customer-modal');
         loadCustomers();
     } catch (err) { alert(err.message); }
@@ -591,13 +792,23 @@ async function handleCreateCustomer(e) {
 
 async function handleCreateSupplier(e) {
     e.preventDefault();
+    const supplierId = document.getElementById('sup-id').value;
+    const phone = document.getElementById('sup-phone').value.trim();
+    if (phone && !/^\d{10}$/.test(phone)) {
+        alert('Please enter a valid 10-digit mobile number.');
+        return;
+    }
     const payload = {
         name: document.getElementById('sup-name').value,
-        phone: document.getElementById('sup-phone').value,
+        phone: phone,
         email: document.getElementById('sup-email').value
     };
     try {
-        await apiFetch('/suppliers', { method: 'POST', body: JSON.stringify(payload) });
+        if (supplierId) {
+            await apiFetch(`/suppliers/${supplierId}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await apiFetch('/suppliers', { method: 'POST', body: JSON.stringify(payload) });
+        }
         closeModal('supplier-modal');
         loadSuppliers();
     } catch (err) { alert(err.message); }
@@ -634,6 +845,7 @@ function openPaymentModal() {
         alert('You do not have permission to record payments.');
         return;
     }
+    document.getElementById('form-payment').reset();
     document.getElementById('payment-modal').classList.add('active');
     populatePaymentEntities();
 }
@@ -702,5 +914,10 @@ async function loadUsers() {
 }
 
 function closeModal(modalId) {
-    document.getElementById(modalId).classList.remove('active');
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.remove('active');
+        const form = modal.querySelector('form');
+        if (form) form.reset();
+    }
 }

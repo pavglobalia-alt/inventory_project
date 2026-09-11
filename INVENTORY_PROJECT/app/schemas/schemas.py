@@ -100,8 +100,9 @@ class ProductCreate(BaseModel):
     brand_id: Optional[int] = None
     unit_id: Optional[int] = None
     cost_price: float = 0.0
+    discount_percent: float = 0.0
     selling_price: float = 0.0
-    min_stock_alert: int = 10
+    min_stock_alert: int = 0
     image_url: Optional[str] = None
     initial_stock: float = 0.0
 
@@ -115,6 +116,7 @@ class ProductOut(BaseModel):
     brand_id: Optional[int] = None
     unit_id: Optional[int] = None
     cost_price: float
+    discount_percent: float = 0.0
     selling_price: float
     min_stock_alert: int
     image_url: Optional[str] = None

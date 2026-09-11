@@ -32,6 +32,40 @@ def create_customer(
     return customer
 
 
+@router.put("/customers/{customer_id}", response_model=CustomerOut)
+def update_customer(
+    customer_id: int,
+    payload: CustomerCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("Customers", "FULL"))
+):
+    customer = db.query(Customer).filter(Customer.id == customer_id, Customer.is_active == True).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    for key, value in payload.model_dump().items():
+        setattr(customer, key, value)
+    
+    db.commit()
+    db.refresh(customer)
+    return customer
+
+
+@router.delete("/customers/{customer_id}")
+def delete_customer(
+    customer_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("Customers", "FULL"))
+):
+    customer = db.query(Customer).filter(Customer.id == customer_id, Customer.is_active == True).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    customer.is_active = False
+    db.commit()
+    return {"detail": "Customer deleted successfully"}
+
+
 # ---------------------------------------------------------
 # Suppliers
 # ---------------------------------------------------------
@@ -54,3 +88,38 @@ def create_supplier(
     db.commit()
     db.refresh(supplier)
     return supplier
+
+
+@router.put("/suppliers/{supplier_id}", response_model=SupplierOut)
+def update_supplier(
+    supplier_id: int,
+    payload: SupplierCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("Suppliers", "FULL"))
+):
+    supplier = db.query(Supplier).filter(Supplier.id == supplier_id, Supplier.is_active == True).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    
+    for key, value in payload.model_dump().items():
+        setattr(supplier, key, value)
+    
+    db.commit()
+    db.refresh(supplier)
+    return supplier
+
+
+@router.delete("/suppliers/{supplier_id}")
+def delete_supplier(
+    supplier_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("Suppliers", "FULL"))
+):
+    supplier = db.query(Supplier).filter(Supplier.id == supplier_id, Supplier.is_active == True).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    
+    supplier.is_active = False
+    db.commit()
+    return {"detail": "Supplier deleted successfully"}
+

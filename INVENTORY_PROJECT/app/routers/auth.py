@@ -32,7 +32,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
     perm_list = [f"{p.module}:{p.action}" for p in role_perms]
 
-    access_token = create_access_token(subject=user.id)
+    access_token = create_access_token(subject=user.id) 
     user_out = UserOut(
         id=user.id,
         name=user.name,

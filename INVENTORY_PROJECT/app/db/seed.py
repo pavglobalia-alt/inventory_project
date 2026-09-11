@@ -105,19 +105,23 @@ def seed_database(reset: bool = False):
 
         # 4. Create Default Demo Users
         users_seed = [
-            ("Super Admin", "admin@inventory.com", "Admin@123", "Super Admin"),
-            ("Sub Admin User", "subadmin@inventory.com", "Sub@123", "Sub Admin"),
-            ("Sales Representative", "salesman@inventory.com", "Sales@123", "Salesman"),
-            ("Warehouse Manager", "stock@inventory.com", "Stock@123", "Stock Manager"),
-            ("Accounts Officer", "finance@inventory.com", "Finance@123", "Finance Manager"),
+            ("Super Admin", "admin", "admin@inventory.com", "Admin@123", "Super Admin"),
+            ("Sub Admin User", "subadmin", "subadmin@inventory.com", "Sub@123", "Sub Admin"),
+            ("Sales Representative", "salesman", "salesman@inventory.com", "Sales@123", "Salesman"),
+            ("Warehouse Manager", "stock", "stock@inventory.com", "Stock@123", "Stock Manager"),
+            ("Accounts Officer", "finance", "finance@inventory.com", "Finance@123", "Finance Manager"),
         ]
 
-        for u_name, u_email, u_pwd, u_role in users_seed:
+        for u_name, u_user, u_email, u_pwd, u_role in users_seed:
             user = User(
                 name=u_name,
+                username=u_user,
                 email=u_email,
                 password_hash=get_password_hash(u_pwd),
                 role_id=roles_dict[u_role].id,
+                phone_no="555-0000",
+                address="Default Address",
+                gender="Not Specified",
                 is_active=True
             )
             db.add(user)

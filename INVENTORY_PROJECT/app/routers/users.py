@@ -69,3 +69,58 @@ def list_roles(
         )
         res.append(r_out)
     return res
+
+
+@router.put("/{user_id}", response_model=UserOut)
+def update_user(
+    user_id: int,
+    payload: UserCreate,
+    db: Session = Depends(get_db),
+    current: User = Depends(require_permission("Users", "FULL"))
+):
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Check if new email conflicts with another user
+    existing = db.query(User).filter(User.email == payload.email, User.id != user_id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email is already in use by another user")
+
+    role = db.query(Role).filter(Role.id == payload.role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    target.name = payload.name
+    target.email = payload.email
+    target.role_id = payload.role_id
+    # Only update password if a real password is provided (not the placeholder)
+    if payload.password and payload.password != 'placeholder' and len(payload.password) >= 6:
+        from app.core.security import get_password_hash
+        target.password_hash = get_password_hash(payload.password)
+
+    db.commit()
+    db.refresh(target)
+
+    u_out = UserOut.model_validate(target)
+    u_out.role_name = role.name
+    return u_out
+
+@router.patch("/{user_id}/status", response_model=UserOut)
+def update_user_status(
+    user_id: int,
+    is_active: bool,
+    db: Session = Depends(get_db),
+    current: User = Depends(require_permission("Users", "FULL"))
+):
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    target.is_active = is_active
+    db.commit()
+    db.refresh(target)
+
+    u_out = UserOut.model_validate(target)
+    u_out.role_name = target.role.name if target.role else "N/A"
+    return u_out

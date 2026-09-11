@@ -26,6 +26,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('form-payment').addEventListener('submit', handlePayment);
     document.getElementById('form-customer').addEventListener('submit', handleCreateCustomer);
     document.getElementById('form-supplier').addEventListener('submit', handleCreateSupplier);
+    document.getElementById('form-register-user').addEventListener('submit', handleRegisterUser);
+    
+    const pubRegForm = document.getElementById('public-register-form');
+    if (pubRegForm) {
+        pubRegForm.addEventListener('submit', handlePublicRegister);
+    }
 });
 
 function quickFill(email, password) {
@@ -76,8 +82,72 @@ function logout() {
 }
 
 function showLoginModal() {
+    document.getElementById('public-register-modal').classList.remove('active');
     document.getElementById('login-modal').classList.add('active');
     document.getElementById('app-wrapper').classList.add('hidden');
+}
+
+async function showPublicRegisterModal() {
+    document.getElementById('login-modal').classList.remove('active');
+    document.getElementById('public-register-modal').classList.add('active');
+    
+    // Fetch roles for dropdown
+    try {
+        const res = await fetch(`${API_BASE}/auth/roles`);
+        if (res.ok) {
+            const roles = await res.json();
+            const select = document.getElementById('pub-reg-role');
+            select.innerHTML = '<option value="">-- Select Designation --</option>';
+            roles.forEach(r => {
+                select.innerHTML += `<option value="${r.id}">${r.name}</option>`;
+            });
+        }
+    } catch (err) {
+        console.error("Failed to load roles", err);
+    }
+}
+
+async function handlePublicRegister(e) {
+    e.preventDefault();
+    const errDiv = document.getElementById('pub-reg-error');
+    errDiv.innerText = '';
+    
+    const payload = {
+        name: document.getElementById('pub-reg-name').value.trim(),
+        username: document.getElementById('pub-reg-username').value.trim(),
+        email: document.getElementById('pub-reg-email').value.trim(),
+        phone_no: document.getElementById('pub-reg-phone').value.trim(),
+        address: document.getElementById('pub-reg-address').value.trim(),
+        gender: document.getElementById('pub-reg-gender').value,
+        role_id: parseInt(document.getElementById('pub-reg-role').value),
+        password: document.getElementById('pub-reg-password').value,
+        confirm_password: document.getElementById('pub-reg-confirm-password').value
+    };
+
+    if (payload.password !== payload.confirm_password) {
+        errDiv.innerText = 'Passwords do not match.';
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+            errDiv.innerText = data.detail || 'Registration failed';
+            return;
+        }
+
+        alert('Registration successful! Please wait for administrator approval to login.');
+        document.getElementById('public-register-form').reset();
+        showLoginModal();
+    } catch (err) {
+        errDiv.innerText = 'Connection error. Please try again later.';
+    }
 }
 
 function showApp() {
@@ -895,22 +965,164 @@ async function loadReports() {
 }
 
 async function loadUsers() {
+    // Show "Register New User" button only for Super Admin
+    const regBtn = document.getElementById('btn-register-user');
+    if (regBtn) {
+        regBtn.style.display = currentUser && currentUser.role_name === 'Super Admin' ? 'inline-flex' : 'none';
+    }
+
     try {
         const users = await apiFetch('/users');
         const tbody = document.querySelector('#table-users tbody');
         tbody.innerHTML = '';
+        const isAdmin = currentUser && currentUser.role_name === 'Super Admin';
         users.forEach(u => {
+            const statusTag = u.is_active
+                ? '<span class="tag green">ACTIVE</span>'
+                : '<span class="tag red">INACTIVE</span>';
+            const actionsHtml = isAdmin ? `
+                <div style="display: flex; gap: 6px;">
+                    <button class="chip-btn" title="Edit User" onclick="openEditUserModal(${u.id})"><i class="fa-solid fa-pen-to-square"></i></button>
+                </div>` : '<span style="color: var(--text-muted); font-size: 12px;">—</span>';
             tbody.innerHTML += `
                 <tr>
                     <td>#${u.id}</td>
                     <td><strong>${u.name}</strong></td>
                     <td>${u.email}</td>
                     <td><span class="badge">${u.role_name}</span></td>
-                    <td><span class="tag green">ACTIVE</span></td>
+                    <td>${statusTag}</td>
+                    <td>${actionsHtml}</td>
                 </tr>
             `;
         });
     } catch (err) { console.error(err); }
+}
+
+let allRoles = [];
+
+async function openRegisterUserModal() {
+    if (currentUser.role_name !== 'Super Admin') {
+        alert('Only Super Admin can register new users.');
+        return;
+    }
+    document.getElementById('form-register-user').reset();
+    document.getElementById('reg-user-id').value = '';
+    document.getElementById('register-user-modal-title').innerHTML = '<i class="fa-solid fa-user-shield" style="color: var(--accent-purple);"></i> Register New User';
+    document.getElementById('btn-save-reg-user').innerHTML = '<i class="fa-solid fa-user-check"></i> Create User Account';
+    document.getElementById('reg-password-group').style.display = 'block';
+    document.getElementById('reg-password').required = true;
+    document.getElementById('reg-role-description').style.display = 'none';
+
+    // Load roles into dropdown
+    try {
+        allRoles = await apiFetch('/users/roles');
+        const roleSelect = document.getElementById('reg-role-id');
+        roleSelect.innerHTML = '<option value="">-- Select Role --</option>';
+        allRoles.forEach(r => {
+            roleSelect.innerHTML += `<option value="${r.id}">${r.name}</option>`;
+        });
+        roleSelect.onchange = () => showRoleDescription(roleSelect.value);
+    } catch (err) {
+        console.error('Could not load roles', err);
+    }
+
+    document.getElementById('register-user-modal').classList.add('active');
+}
+
+async function openEditUserModal(userId) {
+    if (currentUser.role_name !== 'Super Admin') {
+        alert('Only Super Admin can edit users.');
+        return;
+    }
+    try {
+        allRoles = await apiFetch('/users/roles');
+        const users = await apiFetch('/users');
+        const u = users.find(x => x.id === userId);
+        if (!u) { alert('User not found.'); return; }
+
+        document.getElementById('form-register-user').reset();
+        document.getElementById('reg-user-id').value = u.id;
+        document.getElementById('register-user-modal-title').innerHTML = '<i class="fa-solid fa-user-pen" style="color: var(--accent-blue);"></i> Edit User';
+        document.getElementById('btn-save-reg-user').innerHTML = '<i class="fa-solid fa-save"></i> Update User';
+        document.getElementById('reg-password-group').style.display = 'none';
+        document.getElementById('reg-password').required = false;
+
+        document.getElementById('reg-name').value = u.name || '';
+        document.getElementById('reg-email').value = u.email || '';
+
+        const roleSelect = document.getElementById('reg-role-id');
+        roleSelect.innerHTML = '<option value="">-- Select Role --</option>';
+        allRoles.forEach(r => {
+            roleSelect.innerHTML += `<option value="${r.id}" ${r.id === u.role_id ? 'selected' : ''}>${r.name}</option>`;
+        });
+        roleSelect.onchange = () => showRoleDescription(roleSelect.value);
+        showRoleDescription(u.role_id);
+
+        document.getElementById('register-user-modal').classList.add('active');
+    } catch (err) { alert(err.message); }
+}
+
+function showRoleDescription(roleId) {
+    const descBox = document.getElementById('reg-role-description');
+    const role = allRoles.find(r => r.id == roleId);
+    if (role && role.permissions && role.permissions.length > 0) {
+        const perms = role.permissions.map(p => `${p.module}:${p.action}`).join(', ');
+        descBox.innerHTML = `<i class="fa-solid fa-shield-halved"></i> <strong>${role.name}</strong> permissions: ${perms}`;
+        descBox.style.display = 'block';
+    } else {
+        descBox.style.display = 'none';
+    }
+}
+
+function toggleRegPassword() {
+    const input = document.getElementById('reg-password');
+    const icon = document.querySelector('#reg-pass-toggle i');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fa-solid fa-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'fa-solid fa-eye';
+    }
+}
+
+async function handleRegisterUser(e) {
+    e.preventDefault();
+    if (currentUser.role_name !== 'Super Admin') {
+        alert('Only Super Admin can register users.');
+        return;
+    }
+
+    const userId = document.getElementById('reg-user-id').value;
+    const name = document.getElementById('reg-name').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const roleId = parseInt(document.getElementById('reg-role-id').value);
+
+    if (!name || !email || !roleId) {
+        alert('Please fill in all required fields.');
+        return;
+    }
+
+    if (!userId && password.length < 6) {
+        alert('Password must be at least 6 characters.');
+        return;
+    }
+
+    const payload = { name, email, password: password || 'placeholder', role_id: roleId };
+
+    try {
+        if (userId) {
+            // Edit: PUT to update user details
+            await apiFetch(`/users/${userId}`, { method: 'PUT', body: JSON.stringify(payload) });
+            alert(`User "${name}" updated successfully!`);
+        } else {
+            await apiFetch('/users', { method: 'POST', body: JSON.stringify(payload) });
+            alert(`User "${name}" registered successfully!`);
+        }
+        closeModal('register-user-modal');
+        loadUsers();
+    } catch (err) { alert(err.message); }
 }
 
 function closeModal(modalId) {

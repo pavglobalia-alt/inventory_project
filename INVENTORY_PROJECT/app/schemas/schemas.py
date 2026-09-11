@@ -44,10 +44,25 @@ class UserCreate(BaseModel):
     password: str
     role_id: int
 
+class UserRegisterPublic(BaseModel):
+    name: str
+    username: str
+    email: EmailStr
+    password: str
+    confirm_password: str
+    phone_no: str
+    address: str
+    gender: str
+    role_id: int
+
 class UserOut(BaseModel):
     id: int
     name: str
+    username: Optional[str] = None
     email: str
+    phone_no: Optional[str] = None
+    address: Optional[str] = None
+    gender: Optional[str] = None
     role_id: int
     role_name: Optional[str] = None
     is_active: bool

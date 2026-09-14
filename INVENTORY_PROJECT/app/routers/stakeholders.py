@@ -18,7 +18,7 @@ def list_customers(
 ):
     return db.query(Customer).filter(Customer.is_active == True).all()
 
-
+ 
 @router.post("/customers", response_model=CustomerOut)
 def create_customer(
     payload: CustomerCreate,

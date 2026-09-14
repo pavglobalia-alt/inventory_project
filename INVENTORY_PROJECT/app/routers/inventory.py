@@ -96,7 +96,7 @@ def adjust_stock(
         raise HTTPException(status_code=404, detail="Product inventory record not found")
 
     old_qty = inventory.quantity_on_hand
-    if payload.adjustment_type.upper() == "IN":
+    if payload.adjustment_type.upper() == "IN": 
         new_qty = old_qty + payload.quantity
         m_type = "ADJUSTMENT_IN"
     elif payload.adjustment_type.upper() == "OUT":

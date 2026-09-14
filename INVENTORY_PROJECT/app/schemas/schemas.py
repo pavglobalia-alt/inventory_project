@@ -39,10 +39,10 @@ class RoleOut(BaseModel):
         from_attributes = True
 
 class UserCreate(BaseModel):
-    name: str
-    email: EmailStr
-    password: str
-    role_id: int
+        name: str
+        email: EmailStr
+        password: str
+        role_id: int
 
 class UserRegisterPublic(BaseModel):
     name: str

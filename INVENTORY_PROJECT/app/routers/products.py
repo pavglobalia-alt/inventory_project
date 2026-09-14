@@ -80,7 +80,7 @@ def list_products(
 def get_product(
     product_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_permission("Products", "VIEW"))
+    user: User = Depends(require_permission("Products", "VIEW"))    
 ):
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:

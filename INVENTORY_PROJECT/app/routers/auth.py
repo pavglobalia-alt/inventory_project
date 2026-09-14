@@ -49,7 +49,7 @@ def register_public_user(payload: UserRegisterPublic, db: Session = Depends(get_
         gender=payload.gender,
         password_hash=get_password_hash(payload.password),
         role_id=payload.role_id,
-        is_active=False  # Requires admin approval
+        is_active=True
     )
     
     db.add(new_user)

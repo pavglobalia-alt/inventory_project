@@ -90,7 +90,7 @@ class Brand(Base):
     products = relationship("Product", back_populates="brand")
 
 
-class Unit(Base):
+class   Unit(Base):
     __tablename__ = "units"
 
     id = Column(Integer, primary_key=True, index=True)

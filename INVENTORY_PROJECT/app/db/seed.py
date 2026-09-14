@@ -154,11 +154,11 @@ def seed_database(reset: bool = False):
             description="Wireless Performance Mouse", category_id=cat1.id, brand_id=brand1.id, unit_id=unit1.id,
             cost_price=75.0, selling_price=99.99, min_stock_alert=5
         )
-        p2 = Product(
-            sku="SKU-DEL-KB216", barcode="890123456702", name="Dell KB216 Wired Keyboard",
-            description="Multimedia Keyboard - Black", category_id=cat1.id, brand_id=brand2.id, unit_id=unit1.id,
-            cost_price=12.50, selling_price=19.99, min_stock_alert=8
-        )
+        # p2 = Product(
+        #     sku="SKU-DEL-KB216", barcode="890123456702", name="Dell KB216 Wired Keyboard",
+        #     description="Multimedia Keyboard - Black", category_id=cat1.id, brand_id=brand2.id, unit_id=unit1.id,
+        #     cost_price=12.50, selling_price=19.99, min_stock_alert=8
+        # )
         p3 = Product(
             sku="SKU-OFF-PPR-A4", barcode="890123456703", name="A4 Copy Paper Box (5 Reams)",
             description="High Quality 80GSM White Paper", category_id=cat2.id, brand_id=None, unit_id=unit2.id,

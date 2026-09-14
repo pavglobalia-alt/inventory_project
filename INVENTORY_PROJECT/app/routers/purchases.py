@@ -39,7 +39,7 @@ def create_purchase(
         raise HTTPException(status_code=400, detail="Purchase order must contain at least one item")
 
     total_amount = 0.0
-    items_to_create = []
+    items_to_create = []    
 
     for item_in in payload.items:
         product = db.query(Product).filter(Product.id == item_in.product_id).first()

@@ -198,12 +198,22 @@ class StockMovementOut(BaseModel):
 # ---------------------------------------------------------
 class PurchaseItemCreate(BaseModel):
     product_id: int
+    quantity: float
+    unit_cost: Optional[float] = None
+
+class PurchaseItemOut(BaseModel):
+    id: int
+    product_id: int
+    product_name: Optional[str] = None
     unit_cost: float
     quantity: float
+    subtotal: float
+
+    class Config:
+        from_attributes = True
 
 class PurchaseCreate(BaseModel):
     supplier_id: int
-    paid_amount: float = 0.0
     items: List[PurchaseItemCreate]
 
 class PurchaseOut(BaseModel):
@@ -215,6 +225,7 @@ class PurchaseOut(BaseModel):
     paid_amount: float
     status: str
     created_at: datetime
+    items: List[PurchaseItemOut] = []
 
     class Config:
         from_attributes = True

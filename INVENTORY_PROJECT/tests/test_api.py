@@ -27,12 +27,22 @@ def test_full_system_flow():
     # Test Salesman attempting to create a Purchase (Should return HTTP 403 Forbidden)
     forbidden_po = client.post("/api/v1/purchases", headers=salesman_headers, json={
         "supplier_id": 1,
-        "paid_amount": 100.0,
         "items": [{"product_id": 1, "unit_cost": 50.0, "quantity": 10}]
     })
     assert forbidden_po.status_code == 403, f"Expected 403 Forbidden, got {forbidden_po.status_code}"
     assert forbidden_po.json()["detail"] == "You do not have permission to access this resource."
     print("[PASS] RBAC Enforced: Salesman restricted from creating Purchases (403 Forbidden)")
+
+    # Test Super Admin creating Purchase on Credit (Automated total calculation and Supplier payable update)
+    po_res = client.post("/api/v1/purchases", headers=admin_headers, json={
+        "supplier_id": 1,
+        "items": [{"product_id": 1, "unit_cost": 50.0, "quantity": 10}]
+    })
+    assert po_res.status_code == 200, po_res.text
+    po_data = po_res.json()
+    assert po_data["total_amount"] == 500.0
+    assert po_data["paid_amount"] == 0.0
+    print(f"[PASS] Credit Purchase Created: PO #{po_data['purchase_no']}, Total: ${po_data['total_amount']}, Paid: ${po_data['paid_amount']}")
 
     print("\n--- 3. Testing Products List ---")
     products_res = client.get("/api/v1/products", headers=admin_headers)
@@ -42,7 +52,7 @@ def test_full_system_flow():
     print(f"[PASS] Products fetched successfully: Found {len(products)} products")
 
     print("\n--- 4. Testing POS Sale Creation & Inventory Stock Deduction ---")
-    p1 = products[0]
+    p1 = next((p for p in products if p["stock_quantity"] >= 2), products[0])
     initial_stock = p1["stock_quantity"]
 
     sale_res = client.post("/api/v1/sales", headers=salesman_headers, json={

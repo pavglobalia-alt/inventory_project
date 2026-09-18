@@ -6,10 +6,27 @@ from app.db.database import get_db
 from app.models.models import (
     Purchase, PurchaseItem, Supplier, Product, Inventory, StockMovement, User
 )
-from app.schemas.schemas import PurchaseCreate, PurchaseOut
+from app.schemas.schemas import PurchaseCreate, PurchaseOut, PurchaseItemOut
 from app.core.permissions import require_permission
 
 router = APIRouter(prefix="/purchases", tags=["Purchase Management"])
+
+def format_purchase_out(purchase: Purchase) -> PurchaseOut:
+    p_out = PurchaseOut.model_validate(purchase)
+    p_out.supplier_name = purchase.supplier.name if purchase.supplier else "Unknown"
+    p_out.items = [
+        PurchaseItemOut(
+            id=item.id,
+            product_id=item.product_id,
+            product_name=item.product.name if item.product else None,
+            unit_cost=item.unit_cost,
+            quantity=item.quantity,
+            subtotal=item.subtotal
+        )
+        for item in purchase.items
+    ]
+    return p_out
+
 
 @router.get("", response_model=List[PurchaseOut])
 def list_purchases(
@@ -17,12 +34,19 @@ def list_purchases(
     user: User = Depends(require_permission("Purchases", "VIEW"))
 ):
     purchases = db.query(Purchase).order_by(Purchase.created_at.desc()).all()
-    res = []
-    for p in purchases:
-        p_out = PurchaseOut.model_validate(p)
-        p_out.supplier_name = p.supplier.name if p.supplier else "Unknown"
-        res.append(p_out)
-    return res
+    return [format_purchase_out(p) for p in purchases]
+
+
+@router.get("/{purchase_id}", response_model=PurchaseOut)
+def get_purchase(
+    purchase_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("Purchases", "VIEW"))
+):
+    purchase = db.query(Purchase).filter(Purchase.id == purchase_id).first()
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchase order not found")
+    return format_purchase_out(purchase)
 
 
 @router.post("", response_model=PurchaseOut)
@@ -46,12 +70,14 @@ def create_purchase(
         if not product:
             raise HTTPException(status_code=404, detail=f"Product ID {item_in.product_id} not found")
 
-        subtotal = item_in.unit_cost * item_in.quantity
+        # Use provided unit_cost or automatically use product.cost_price
+        unit_cost = item_in.unit_cost if item_in.unit_cost is not None else product.cost_price
+        subtotal = unit_cost * item_in.quantity
         total_amount += subtotal
 
         items_to_create.append({
             "product": product,
-            "unit_cost": item_in.unit_cost,
+            "unit_cost": unit_cost,
             "quantity": item_in.quantity,
             "subtotal": subtotal
         })
@@ -62,7 +88,7 @@ def create_purchase(
         purchase_no=purchase_no,
         supplier_id=supplier.id,
         total_amount=total_amount,
-        paid_amount=payload.paid_amount,
+        paid_amount=0.0,
         status="RECEIVED",
         created_by=user.id
     )
@@ -102,14 +128,10 @@ def create_purchase(
         )
         db.add(sm)
 
-    # Update Supplier Payable Balance
-    unpaid = total_amount - payload.paid_amount
-    if unpaid > 0:
-        supplier.current_balance += unpaid
+    # Update Supplier Payable Balance (Credit Purchase)
+    supplier.current_balance += total_amount
 
     db.commit()
     db.refresh(purchase)
 
-    p_out = PurchaseOut.model_validate(purchase)
-    p_out.supplier_name = supplier.name
-    return p_out
+    return format_purchase_out(purchase)
